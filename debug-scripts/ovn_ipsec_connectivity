@@ -7,15 +7,15 @@ source common
 check_ovn_ipsec_enabled () {
     echo "INFO: Ensuring ovn-ipsec is enabled"
     IPSEC_PODS=($(oc -n openshift-ovn-kubernetes get pods -l app=ovn-ipsec -o=jsonpath='{.items[*].metadata.name}'))
-    IPSEC_ENABLED=($(oc get network.operator.openshift.io/cluster -o=jsonpath='{.items[*].spec.defaultNetwork.ovnKubernetesConfig.ipsecConfig}'))
+    #IPSEC_ENABLED=($(oc get network.operator.openshift.io/cluster -o=jsonpath='{.items[*].spec.defaultNetwork.ovnKubernetesConfig.ipsecConfig}'))
 
     # TODO check with oc get network.operator.openshift.io/cluster -o=jsonpath='{.items[*].spec.defaultNetwork.ovnKubernetesConfig.ipsecConfig}'
     # once tests can be run with real cluster
-    if [ -z "$IPSEC_PODS" || "$IPSEC_ENABLED" ]; then
-        echo "No ovn-ipsec pods exist, tunnel traffic will be unencrypted --> see $PCAP_FILENAME"
+    if [ -z "$IPSEC_PODS" ]; then #|| [ "$IPSEC_ENABLED" ]; then
+        echo "No ovn-ipsec pods exist, tunnel traffic will be unencrypted"
         return 0
     else
-        echo "ovn-ipsec is enabled, tunnel traffic should be encryted --> see ${PCAP_FILENAME}"
+        echo "ovn-ipsec is enabled, tunnel traffic should be encryted"
         return 1
     fi
 
@@ -29,16 +29,18 @@ do_ovn_ipsec_encryption_check () {
     # TODO check with oc get network.operator.openshift.io/cluster -o=jsonpath='{.items[*].spec.defaultNetwork.ovnKubernetesConfig.ipsecConfig}'
     # once tests can be run with real cluster
     if ! [ check_ovn_ipsec_enabled ]; then
-        exit 
+        exit 0 
     fi
 
-    client_debug_pod="client-debug"-$(get_random_name) 
-    server_debug_pod="server-debug"-$(get_random_name)
+    echo "IPSEC is enabled "
+
+    client_debug_pod="client-debug"-$(get_random_name) ||
+    server_debug_pod="server-debug"-$(get_random_name) ||
 
     create_pod_on_node $client_debug_pod "${WORKER_NODES[0]}"
     create_pod_on_node $server_debug_pod "${WORKER_NODES[1]}"
 
-    server_debug_pod_ip=$(get_pod_ip $server_debug_pod $(get_current_namespace))
+    server_debug_pod_ip=$(get_pod_ip $(get_current_namespace) $server_debug_pod)
 
     echo "INFO: make sure interface eth0 exists"
 
